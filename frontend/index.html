@@ -150,9 +150,25 @@
               <div class="secret-card__details">
                 <div v-for="(value, key) in secret.details" :key="key" class="detail-row">
                   <span class="detail-key">{{ prettifyKey(key) }}</span>
-                  <span class="detail-value" :class="{ masked: shouldMask(key) }">
-                    {{ shouldMask(key) ? maskValue(value) : value || '—' }}
-                  </span>
+                  <div class="detail-value-group">
+                    <span class="detail-value" :class="{ masked: shouldMask(key) }">
+                      {{ shouldMask(key) ? maskValue(value) : value || '—' }}
+                    </span>
+                    <button
+                      v-if="shouldMask(key) && value"
+                      type="button"
+                      class="btn subtle copy-btn"
+                      @click="copySecretValue(secret, key, value)"
+                    >
+                      Copy
+                    </button>
+                    <span
+                      v-if="lastCopied.id === secret.id && lastCopied.key === key"
+                      class="copy-feedback"
+                    >
+                      Copied!
+                    </span>
+                  </div>
                 </div>
               </div>
 
