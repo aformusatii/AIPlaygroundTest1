@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Personal Vault</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  </head>
+  <body>
+    <div id="app" class="app-shell" v-cloak>
+      <header class="app-header">
+        <h1>Secure Vault</h1>
+        <p class="subtitle">
+          Store credentials, SSH keys, credit cards, and other secrets in one place.
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel form-panel">
+          <h2>Add / Update Secret</h2>
+          <form @submit.prevent="handleSubmit" class="vault-form">
+            <label class="field">
+              <span>Secret Type</span>
+              <select v-model="form.type" required>
+                <option disabled value="">Select a type</option>
+                <option value="credential">Website Credential</option>
+                <option value="sshKey">SSH Key</option>
+                <option value="creditCard">Credit Card</option>
+                <option value="misc">Misc Secret</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Name</span>
+              <input v-model.trim="form.name" type="text" placeholder="Label" required />
+            </label>
+
+            <div v-if="form.type === 'credential'" class="field-group">
+              <label class="field">
+                <span>Website</span>
+                <input v-model.trim="form.details.site" type="url" placeholder="https://example.com" />
+              </label>
+              <label class="field">
+                <span>Username</span>
+                <input v-model.trim="form.details.username" type="text" placeholder="username" />
+              </label>
+              <label class="field">
+                <span>Password</span>
+                <input v-model="form.details.password" type="password" placeholder="••••••" />
+              </label>
+            </div>
+
+            <div v-else-if="form.type === 'sshKey'" class="field-group">
+              <label class="field">
+                <span>Host / Usage</span>
+                <input v-model.trim="form.details.host" type="text" placeholder="GitHub" />
+              </label>
+              <label class="field">
+                <span>Public Key</span>
+                <textarea v-model.trim="form.details.publicKey" rows="3" placeholder="ssh-ed25519 AAAA..."></textarea>
+              </label>
+              <label class="field">
+                <span>Private Key</span>
+                <textarea v-model.trim="form.details.privateKey" rows="4" placeholder="-----BEGIN..."></textarea>
+              </label>
+            </div>
+
+            <div v-else-if="form.type === 'creditCard'" class="field-group">
+              <label class="field">
+                <span>Card Holder</span>
+                <input v-model.trim="form.details.cardholder" type="text" placeholder="John Doe" />
+              </label>
+              <label class="field">
+                <span>Card Number</span>
+                <input v-model.trim="form.details.number" type="text" placeholder="4111 1111 1111 1111" />
+              </label>
+              <div class="field-row">
+                <label class="field">
+                  <span>Expiry</span>
+                  <input v-model.trim="form.details.expiry" type="text" placeholder="04/27" />
+                </label>
+                <label class="field">
+                  <span>CVV</span>
+                  <input v-model.trim="form.details.cvv" type="text" placeholder="123" />
+                </label>
+              </div>
+            </div>
+
+            <div v-else-if="form.type === 'misc'" class="field-group">
+              <label class="field">
+                <span>Description</span>
+                <textarea v-model.trim="form.details.description" rows="3" placeholder="Locker combination, API token, ..."></textarea>
+              </label>
+              <label class="field">
+                <span>Secret</span>
+                <textarea v-model.trim="form.details.secret" rows="4" placeholder="Value"></textarea>
+              </label>
+            </div>
+
+            <label class="field">
+              <span>Notes</span>
+              <textarea v-model.trim="form.details.notes" rows="3" placeholder="Optional notes"></textarea>
+            </label>
+
+            <div class="form-actions">
+              <button type="submit" class="btn primary">{{ form.id ? 'Update Secret' : 'Add Secret' }}</button>
+              <button type="button" class="btn" @click="resetForm" v-if="form.id">Cancel Edit</button>
+            </div>
+            <p v-if="formError" class="form-error">{{ formError }}</p>
+            <p v-if="formSuccess" class="form-success">{{ formSuccess }}</p>
+          </form>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="list-header">
+            <h2>Stored Secrets</h2>
+            <div class="filters">
+              <label>
+                <span>Filter</span>
+                <select v-model="filters.type">
+                  <option value="all">All Types</option>
+                  <option value="credential">Credentials</option>
+                  <option value="sshKey">SSH Keys</option>
+                  <option value="creditCard">Credit Cards</option>
+                  <option value="misc">Misc</option>
+                </select>
+              </label>
+              <label>
+                <span>Search</span>
+                <input v-model.trim="filters.query" type="search" placeholder="Search by name or detail" />
+              </label>
+            </div>
+          </div>
+
+          <ul class="secret-list" v-if="filteredSecrets.length">
+            <li v-for="secret in filteredSecrets" :key="secret.id" class="secret-card">
+              <header class="secret-card__header">
+                <span class="badge" :data-type="secret.type">{{ displayType(secret.type) }}</span>
+                <h3>{{ secret.name }}</h3>
+                <time :datetime="secret.updatedAt">Updated {{ formatDate(secret.updatedAt) }}</time>
+              </header>
+
+              <div class="secret-card__details">
+                <div v-for="(value, key) in secret.details" :key="key" class="detail-row">
+                  <span class="detail-key">{{ prettifyKey(key) }}</span>
+                  <span class="detail-value" :class="{ masked: shouldMask(key) }">
+                    {{ shouldMask(key) ? maskValue(value) : value || '—' }}
+                  </span>
+                </div>
+              </div>
+
+              <footer class="secret-card__footer">
+                <button class="btn subtle" @click="prepareEdit(secret)">Edit</button>
+                <button class="btn danger" @click="removeSecret(secret)">Delete</button>
+              </footer>
+            </li>
+          </ul>
+          <p v-else class="empty-state">No secrets saved yet. Add your first entry to get started.</p>
+        </section>
+      </main>
+    </div>
+
+    <script src="/main.js" type="module"></script>
+  </body>
+</html>
