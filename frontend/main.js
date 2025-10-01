@@ -26,6 +26,9 @@ createApp({
     const form = reactive(defaultForm());
     const formError = ref('');
     const formSuccess = ref('');
+    const lastCopied = ref({ id: null, key: '' });
+
+    let copyTimeoutId;
 
     watch(
       () => form.type,
@@ -161,6 +164,29 @@ createApp({
     const sensitiveKeys = ['password', 'privateKey', 'number', 'cvv', 'secret'];
     const shouldMask = (key) => sensitiveKeys.includes(key);
 
+    const copySecretValue = async (secret, key, value) => {
+      const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+      if (!clipboard?.writeText) {
+        formError.value = 'Clipboard access is not supported in this browser.';
+        return;
+      }
+
+      if (value === null || value === undefined) return;
+      const text = typeof value === 'string' ? value : String(value);
+      if (!text) return;
+
+      try {
+        await clipboard.writeText(text);
+        lastCopied.value = { id: secret.id, key };
+        clearTimeout(copyTimeoutId);
+        copyTimeoutId = setTimeout(() => {
+          lastCopied.value = { id: null, key: '' };
+        }, 2000);
+      } catch (error) {
+        formError.value = 'Failed to copy value to clipboard.';
+      }
+    };
+
     fetchSecrets();
 
     return {
@@ -178,7 +204,9 @@ createApp({
       formatDate,
       prettifyKey,
       maskValue,
-      shouldMask
+      shouldMask,
+      copySecretValue,
+      lastCopied
     };
   }
 }).mount('#app');
